@@ -1,25 +1,42 @@
+import React, { useState } from "react";
+import { FaBars, FaTimes, FaHospital, FaAmbulance } from "react-icons/fa";
 
-"use client";
+function Sidebar({ setActivePage, activePage }) {
+  const [isExpanded, setIsExpanded] = useState(false);
 
-import { Sidebar } from "flowbite-react";
-import { HiArrowSmRight, HiChartPie, HiInbox, HiShoppingBag, HiTable, HiUser, HiViewBoards } from "react-icons/hi";
-
-export function SidebarC({}) {
   return (
-    <Sidebar aria-label="Default sidebar example">
-      <Sidebar.Items>
-        <Sidebar.ItemGroup>
-        <Sidebar.Item href="./pages/Alerts.jsx" icon={HiChartPie}>
-            Resource Updation
-          </Sidebar.Item>
-          <Sidebar.Item href="" icon={HiChartPie}>
-            Alerts
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiChartPie}>
-            Ambulance Data
-          </Sidebar.Item>
-        </Sidebar.ItemGroup>
-      </Sidebar.Items>
-    </Sidebar>
+    <div className={`bg-blue-900 text-white h-screen transition-all duration-300 ${isExpanded ? "w-64" : "w-16"}`}>
+      <div className="flex justify-between items-center py-4 px-4">
+        {!isExpanded && (
+          <button onClick={() => setIsExpanded(true)} className="text-white cursor-pointer text-2xl focus:outline-none">
+            <FaBars />
+          </button>
+        )}
+        {isExpanded && (
+          <button onClick={() => setIsExpanded(false)} className="text-white cursor-pointer text-2xl focus:outline-none ml-auto">
+            <FaTimes />
+          </button>
+        )}
+      </div>
+
+      <ul className="mt-4">
+        <li
+          onClick={() => setActivePage("resources")}
+          className={`flex items-center p-4 cursor-pointer hover:bg-blue-700 ${activePage === "resources" ? "bg-blue-700" : ""}`}
+        >
+          <FaHospital className="text-xl" />
+          {isExpanded && <span className="ml-3">Resources Updation</span>}
+        </li>
+        <li
+          onClick={() => setActivePage("ambulance")}
+          className={`flex items-center p-4 cursor-pointer hover:bg-blue-700 ${activePage === "ambulance" ? "bg-blue-700" : ""}`}
+        >
+          <FaAmbulance className="text-xl" />
+          {isExpanded && <span className="ml-3">Ambulance Data</span>}
+        </li>
+      </ul>
+    </div>
   );
 }
+
+export default Sidebar;

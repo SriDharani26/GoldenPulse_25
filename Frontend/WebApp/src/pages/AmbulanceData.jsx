@@ -7,5 +7,5 @@ function AmbulanceData() {
     );
   }
   
-export default AmbulanceData;
+  export default AmbulanceData;
   
