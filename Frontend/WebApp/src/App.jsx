@@ -1,35 +1,61 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState, useEffect, useRef } from "react";
+import { FaBell, FaSignOutAlt, FaUser } from "react-icons/fa";
+import Sidebar from "./components/Sidebar";
+import ResourcesUpdation from "./pages/ResourceUpdation"
+import Alerts from "./pages/Alerts";
+import AmbulanceData from "./pages/AmbulanceData";
+import Topbar from "./components/Topbar";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activePage, setActivePage] = useState("resources"); 
+  const [showDropdown, setShowDropdown] = useState(false); 
+  const dropdownRef = useRef(null);
+
+  const user = {
+    name: "John Doe",
+    avatar: "https://via.placeholder.com/40",
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  let PageContent;
+  switch (activePage) {
+    case "resources":
+      PageContent = <ResourcesUpdation />;
+      break;
+    case "ambulance":
+      PageContent = <AmbulanceData />;
+      break;
+    case "alerts":
+      PageContent = <Alerts />; 
+      break;
+    default:
+      PageContent = <ResourcesUpdation />;
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="h-screen flex flex-col">
+      <Topbar
+        activePage={activePage}
+        setActivePage={setActivePage}
+        user={user}
+      />
+      <div className="flex flex-1 pt-16">
+        <Sidebar setActivePage={setActivePage} activePage={activePage} />
+        <div className="flex-1 p-6 bg-white text-gray-900 overflow-auto">
+          {PageContent}
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
 
-export default App
+export default App;
