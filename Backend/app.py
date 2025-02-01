@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import speech_recognition as sr
+from severity import severity_bp
 
 load_dotenv()
 
@@ -106,7 +107,9 @@ def emergency():
         return jsonify({"message": "Error saving emergency data"}), 500
 
 
-    
+app.register_blueprint(severity_bp)
+
+
 if _name_ == '_main_':
     app.config['DEBUG'] = False
     app.run(host='0.0.0.0', port=5000)
