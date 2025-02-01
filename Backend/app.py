@@ -282,16 +282,14 @@ def get_shortest_travel_time():
 
     return jsonify(result)
 
-
+model = joblib.load("random_forest_model.pkl")
+label_encoder = joblib.load("label_encoder.pkl")
 
 @app.route('/predict', methods=['POST'])
-def predict(num_injured, accident_type):
-    # data = request.json
-    # num_injured = data['num_injured']
-    # accident_type = data['accident_type']
-    print(num_injured)
-    print(accident_type)
-    print("this function called")
+def predict():
+    data = request.json
+    num_injured = data['num_injured']
+    accident_type = data['accident_type']
 
     accident_type_encoded = label_encoder.transform([accident_type])[0]
     input_data = np.array([[num_injured, accident_type_encoded]])
@@ -301,7 +299,6 @@ def predict(num_injured, accident_type):
         "Number of Ambulances": int(prediction[0][0]),
         "Number of Emergency Beds": int(prediction[0][1])
     }
-    print(response)
     return jsonify(response)
 
 
