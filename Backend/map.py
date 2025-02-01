@@ -1,14 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Blueprint, request, jsonify
 import requests
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
-app = Flask(__name__)
+travel_bp = Blueprint('travel', __name__)
 
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 
-@app.route('/get_shortest_travel_time', methods=['POST'])
+@travel_bp.route('/get_shortest_travel_time', methods=['POST'])
 def get_shortest_travel_time():
     print("Getting shortest travel time...")
     data = request.get_json()
@@ -36,6 +36,3 @@ def get_shortest_travel_time():
     }
 
     return jsonify(result)
-
-if __name__ == '__main__':
-    app.run(debug=True)
