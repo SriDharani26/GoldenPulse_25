@@ -1,16 +1,16 @@
-import speech_recognition as sr
+#import package
+import speech_recognition
 
-recognizer = sr.Recognizer()
+#import audio file
+audio_file = "uploads/audio.wav"
 
-audio_file = 'Backend/uploads/audio.wav'
+# initialize the recognizer
+sp = speech_recognition.Recognizer()
 
-with sr.AudioFile(audio_file) as source:
-    audio_data = recognizer.record(source)
-
-try:
-    text = recognizer.recognize_google(audio_data)
+# open the file
+with speech_recognition.AudioFile(audio_file) as source:
+    # load audio to memory
+    audio_data = sp.record(source)
+    # convert speech to text
+    text = sp.recognize_google(audio_data)
     print(text)
-except sr.UnknownValueError:
-    print('Could not understand audio')
-except sr.RequestError:
-    print('Error with speech recognition service')

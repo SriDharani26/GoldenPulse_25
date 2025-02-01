@@ -64,33 +64,41 @@ export default function App() {
 
   async function stopRecording() {
     try {
-
       if (recordingStatus === 'recording') {
-        console.log('Stopping Recording')
+        console.log('Stopping Recording');
         await recording.stopAndUnloadAsync();
         const recordingUri = recording.getURI();
-
+  
         const fileName = `recording-${Date.now()}.wav`;  
-        await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + 'recordings/', { intermediates: true });
+        const targetDirectory = FileSystem.documentDirectory + 'recordings/';
+        await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true });
+  
+        // Log the file name before moving
+        console.log('Generated file name:', fileName);
+  
+        const targetFilePath = targetDirectory + fileName;
         await FileSystem.moveAsync({
           from: recordingUri,
-          to: FileSystem.documentDirectory + 'recordings/' + `${fileName}`
+          to: targetFilePath
         });
-
+        const fileInfo = await FileSystem.getInfoAsync(targetFilePath);
+        console.log('Audio file saved at:', fileInfo.uri); 
+        console.log('File size:', fileInfo.size);  
+        console.log('File name:', fileInfo.uri.split('/').pop()); 
         const playbackObject = new Audio.Sound();
-        await playbackObject.loadAsync({ uri: FileSystem.documentDirectory + 'recordings/' + `${fileName}` });
+        await playbackObject.loadAsync({ uri: fileInfo.uri });
         await playbackObject.playAsync();
-
+  
         setRecording(null);
         setRecordingStatus('stopped');
-        
-        return FileSystem.documentDirectory + 'recordings/' + fileName;
+  
+        return fileInfo.uri;  
       }
-
     } catch (error) {
       console.error('Failed to stop recording', error);
     }
   }
+  
 
   async function handleRecordButtonPress() {
     if (recording) {
@@ -103,59 +111,43 @@ export default function App() {
       await startRecording();
     }
   }
-
   async function sendAudioToBackend(audioUri) {
     try {
-        const fileInfo = await FileSystem.getInfoAsync(audioUri);
-        if (!fileInfo.exists) {
-            console.error("Audio file does not exist:", audioUri);
-            alert("Error: Audio file not found.");
-            return;
+      const fileInfo = await FileSystem.getInfoAsync(audioUri);
+  
+      if (!fileInfo.exists) {
+        console.error("Audio file does not exist:", audioUri);
+        alert("Error: Audio file not found.");
+        return;
+      }
+  
+      console.log('Sending audio file:', audioUri);
+      console.log('File info:', fileInfo);
+  
+      const formData = new FormData();
+      formData.append('audio', {
+        uri: audioUri,
+        type: 'audio/wav',
+        name: 'audio.wav', 
+      });
+  
+      console.log('FormData content:', formData);
+  
+      const response = await db.post('upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
         }
-
-        const formData = new FormData();
-        formData.append('audio', {
-            uri: audioUri,
-            type: 'audio/wav',  // Ensure it's correctly set
-            name: 'audio.wav'    
-        });
-
-        console.log('Sending audio file:', audioUri);
-
-        const response = await db.post('upload', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data', 
-            }
-        });
-
-        if (response.status === 200) {
-            alert('Audio uploaded successfully!');
-        } else {
-            console.log('Error uploading audio:', response.data);
-            alert('Error uploading audio');
-        }
+      });
+  
+      if (response.status === 200) {
+        alert('Audio uploaded successfully!');
+      }
     } catch (error) {
-        console.error('Error sending audio: ', error);
-        alert('Error sending audio: ' + error.message);
+      console.error('Error sending audio:', error);
+      alert('Error sending audio: ' + error.message);
     }
-}
-
-  useEffect(() => {
-    checkIfLocationEnabled();
-    getCurrentLocation();
-  }, []);
-
-  const checkIfLocationEnabled = async () => {
-    let enabled = await Location.hasServicesEnabledAsync(); // returns true or false
-    if (!enabled) {
-      Alert.alert('Location not enabled', 'Please enable your Location', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'OK' },
-      ]);
-    } else {
-      setLocationServicesEnabled(enabled);
-    }
-  };
+  }
+  
 
   const getCurrentLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync(); // Request permission

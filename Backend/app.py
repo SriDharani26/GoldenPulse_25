@@ -8,40 +8,52 @@ import os
 import speech_recognition as sr
 
 
+app = Flask(__name__)
 CORS(app)  
 
 UPLOAD_FOLDER = './uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 @app.route('/upload', methods=['POST'])
 def upload_audio():
     try:
+        print(request.files['audio'])
         if 'audio' not in request.files:
             return jsonify({'message': 'No audio file part'}), 400
 
+        print('first step')
         audio_file = request.files['audio']
-        
+
+        # Ensure the file has a name
         if audio_file.filename == '':
             return jsonify({'message': 'No selected file'}), 400
-
+        
+        print('second step')
+        # Validate the file extension (allow only .wav files)
         if not audio_file.filename.endswith('.wav'):
             return jsonify({'message': 'Only .wav files are allowed'}), 400
 
+        print('third step')
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_file.filename)
         audio_file.save(filepath)
-        
-        # Call the analyse_audio function after saving the file
-        analyse_audio()
-        
-        return jsonify({
-                'message': 'Audio file uploaded and analyzed successfully!',
-        }), 200
-        
+
+        print('fouth step')
+        return jsonify({'message': 'Audio file uploaded successfully!'}), 200
+
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 
+@app.route('/uploads/<filename>', methods=['GET'])
+def serve_audio(filename):
+    try:
+        # Serve the file from the uploads folder
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except FileNotFoundError:
+        return jsonify({'message': 'File not found'}), 404
 
 def analyse_audio():
     
