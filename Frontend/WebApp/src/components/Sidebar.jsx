@@ -4,31 +4,19 @@
 import { Sidebar } from "flowbite-react";
 import { HiArrowSmRight, HiChartPie, HiInbox, HiShoppingBag, HiTable, HiUser, HiViewBoards } from "react-icons/hi";
 
-export function SidebarC() {
+export function SidebarC({}) {
   return (
     <Sidebar aria-label="Default sidebar example">
       <Sidebar.Items>
         <Sidebar.ItemGroup>
+        <Sidebar.Item href="./pages/Alerts.jsx" icon={HiChartPie}>
+            Resource Updation
+          </Sidebar.Item>
+          <Sidebar.Item href="" icon={HiChartPie}>
+            Alerts
+          </Sidebar.Item>
           <Sidebar.Item href="#" icon={HiChartPie}>
-            Dashboard
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiViewBoards} label="Pro" labelColor="dark">
-            Kanban
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiInbox} label="3">
-            Inbox
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiUser}>
-            Users
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiShoppingBag}>
-            Products
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiArrowSmRight}>
-            Sign In
-          </Sidebar.Item>
-          <Sidebar.Item href="#" icon={HiTable}>
-            Sign Up
+            Ambulance Data
           </Sidebar.Item>
         </Sidebar.ItemGroup>
       </Sidebar.Items>
