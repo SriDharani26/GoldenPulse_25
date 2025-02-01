@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, Alert, StyleSheet } from 'react-native';
 import db from "@/api/api";
-import axios from 'axios';
+import * as Location from 'expo-location';
 
 const accidentImages = {
   road: require('@/assets/images/react-logo.png'),
@@ -18,11 +18,13 @@ const numberOfPeopleImages = {
 };
 
 export default function ImageEmergency() {
- 
+  const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading.....');
+  const [locationServicesEnabled, setLocationServicesEnabled] = useState(false);
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
   const [accidentType, setAccidentType] = useState(null);
   const [numberOfPeople, setNumberOfPeople] = useState(null);
 
- 
   const handleSendEmergency = async () => {
     if (!accidentType || !numberOfPeople) {
       Alert.alert('Error', 'Please select both accident type and number of people');
@@ -30,13 +32,43 @@ export default function ImageEmergency() {
     }
 
 
+    const getCurrentLocation = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync(); // Request permission
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Allow the app to use the location services');
+        return;
+      }
+
+      const { coords } = await Location.getCurrentPositionAsync();
+      if (coords) {
+        setLatitude(coords.latitude);
+        setLongitude(coords.longitude);
+        
+        let response = await Location.reverseGeocodeAsync({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+
+        for (let item of response) {
+          let address = ${item.name}, ${item.city}, ${item.postalCode};
+          setDisplayCurrentAddress(address);
+        }
+      }
+    };
+
+
+    await getCurrentLocation();
+
     const data = {
       accident_type: accidentType,
       number_of_people: numberOfPeople,
+      latitude: latitude,
+      longitude: longitude,
+      location_address: displayCurrentAddress,
     };
 
     try {
-      const response = await db.post(`/emergency`, data, {
+      const response = await db.post('/emergency', data, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -102,7 +134,6 @@ export default function ImageEmergency() {
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
