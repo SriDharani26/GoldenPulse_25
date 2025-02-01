@@ -2,7 +2,6 @@ import { Text, TouchableOpacity, View, StyleSheet, Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-
 import db from "@/api/api";
 import * as Location from 'expo-location';
 
@@ -16,12 +15,13 @@ export default function App() {
 
   useEffect(() => {
     async function getPermission() {
-      await Audio.requestPermissionsAsync().then((permission) => {
-        console.log('Permission Granted: ' + permission.granted);
+      try {
+        const permission = await Audio.requestPermissionsAsync();
+        console.log('Permission Granted:', permission.granted);
         setAudioPermission(permission.granted);
-      }).catch(error => {
-        console.log(error);
-      });
+      } catch (error) {
+        console.error('Error requesting audio permission:', error);
+      }
     }
 
     getPermission();
@@ -36,12 +36,15 @@ export default function App() {
 
   async function startRecording() {
     try {
-      if (audioPermission) {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true
-        });
+      if (!audioPermission) {
+        alert('Audio recording permission not granted');
+        return;
       }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
 
       const newRecording = new Audio.Recording();
       console.log('Starting Recording');
@@ -49,52 +52,50 @@ export default function App() {
       await newRecording.startAsync();
       setRecording(newRecording);
       setRecordingStatus('recording');
-
     } catch (error) {
-      console.error('Failed to start recording', error);
+      console.error('Failed to start recording:', error);
     }
   }
 
   async function stopRecording() {
     try {
-      if (recordingStatus === 'recording') {
-        console.log('Stopping Recording');
-        await recording.stopAndUnloadAsync();
-        const recordingUri = recording.getURI();
+      if (recordingStatus !== 'recording') return;
 
-        const fileName = recording-${Date.now()}.wav;  
-        const targetDirectory = FileSystem.documentDirectory + 'recordings/';
-        await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true });
+      console.log('Stopping Recording');
+      await recording.stopAndUnloadAsync();
+      const recordingUri = recording.getURI();
 
-        const targetFilePath = targetDirectory + fileName;
-        await FileSystem.moveAsync({
-          from: recordingUri,
-          to: targetFilePath
-        });
+      const fileName =`recording-${Date.now()}.wav`;
+      const targetDirectory = FileSystem.documentDirectory + 'recordings/';
+      await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true });
 
-        const fileInfo = await FileSystem.getInfoAsync(targetFilePath);
-        console.log('Audio file saved at:', fileInfo.uri); 
+      const targetFilePath = targetDirectory + fileName;
+      await FileSystem.moveAsync({
+        from: recordingUri,
+        to: targetFilePath,
+      });
 
-        const playbackObject = new Audio.Sound();
-        await playbackObject.loadAsync({ uri: fileInfo.uri });
-        await playbackObject.playAsync();
+      console.log('Audio file saved at:', targetFilePath);
 
-        setRecording(null);
-        setRecordingStatus('stopped');
+      const playbackObject = new Audio.Sound();
+      await playbackObject.loadAsync({ uri: targetFilePath });
+      await playbackObject.playAsync();
 
-        return fileInfo.uri;  
-      }
+      setRecording(null);
+      setRecordingStatus('stopped');
+
+      return targetFilePath;
     } catch (error) {
-      console.error('Failed to stop recording', error);
+      console.error('Failed to stop recording:', error);
     }
   }
 
   async function handleRecordButtonPress() {
     if (recording) {
-      const audioUri = await stopRecording(recording);
+      const audioUri = await stopRecording();
       if (audioUri) {
         console.log('Saved audio file to', audioUri);
-        await sendAudioToBackend(audioUri); 
+        await sendAudioToBackend(audioUri);
       }
     } else {
       await startRecording();
@@ -104,33 +105,30 @@ export default function App() {
   async function sendAudioToBackend(audioUri) {
     try {
       const fileInfo = await FileSystem.getInfoAsync(audioUri);
-  
       if (!fileInfo.exists) {
-        console.error("Audio file does not exist:", audioUri);
-        alert("Error: Audio file not found.");
+        console.error('Audio file does not exist:', audioUri);
+        alert('Error: Audio file not found.');
         return;
       }
-  
+
       console.log('Sending audio file:', audioUri);
-      console.log('File info:', fileInfo);
-  
+
       const formData = new FormData();
       formData.append('audio', {
         uri: audioUri,
         type: 'audio/wav',
-        name: 'audio.wav', 
+        name: 'audio.wav',
       });
 
-     
       formData.append('latitude', latitude);
       formData.append('longitude', longitude);
-  
+
       const response = await db.post('upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-        }
+        },
       });
-  
+
       if (response.status === 200) {
         alert('Audio uploaded successfully!');
       }
@@ -141,26 +139,30 @@ export default function App() {
   }
 
   const getCurrentLocation = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync(); // Request permission
-    if (status !== 'granted') {
-      Alert.alert('Permission denied', 'Allow the app to use the location services');
-      return;
-    }
-
-    const { coords } = await Location.getCurrentPositionAsync();
-    if (coords) {
-      setLatitude(coords.latitude);
-      setLongitude(coords.longitude);
-      
-      let response = await Location.reverseGeocodeAsync({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      });
-
-      for (let item of response) {
-        let address = ${item.name}, ${item.city}, ${item.postalCode};
-        setDisplayCurrentAddress(address);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Allow the app to use location services');
+        return;
       }
+
+      const { coords } = await Location.getCurrentPositionAsync();
+      if (coords) {
+        setLatitude(coords.latitude);
+        setLongitude(coords.longitude);
+
+        const response = await Location.reverseGeocodeAsync({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+
+        for (let item of response) {
+          let address =`${item.name}, ${item.city}, ${item.postalCode}`;
+          setDisplayCurrentAddress(address);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching location:', error);
     }
   };
 
@@ -169,7 +171,7 @@ export default function App() {
       <TouchableOpacity style={styles.button} onPress={handleRecordButtonPress}>
         <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
       </TouchableOpacity>
-      <Text style={styles.recordingStatusText}>{Recording status: ${recordingStatus}}</Text>
+      <Text style={styles.recordingStatusText}>{`Recording status: ${recordingStatus}`}</Text>
       <Text>{latitude}</Text>
       <Text>{longitude}</Text>
       <Text>{displayCurrentAddress}</Text>

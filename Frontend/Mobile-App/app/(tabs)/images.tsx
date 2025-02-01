@@ -19,11 +19,40 @@ const numberOfPeopleImages = {
 
 export default function ImageEmergency() {
   const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading.....');
-  const [locationServicesEnabled, setLocationServicesEnabled] = useState(false);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [accidentType, setAccidentType] = useState(null);
   const [numberOfPeople, setNumberOfPeople] = useState(null);
+
+  const getCurrentLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Allow the app to use the location services');
+        return false;
+      }
+
+      const { coords } = await Location.getCurrentPositionAsync();
+      setLatitude(coords.latitude);
+      setLongitude(coords.longitude);
+
+      const response = await Location.reverseGeocodeAsync({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
+
+      if (response.length > 0) {
+        let item = response[0];
+        let address =`${item.name}, ${item.city}, ${item.postalCode}`;
+        setDisplayCurrentAddress(address);
+      }
+      return true;
+    } catch (error) {
+      Alert.alert('Error', 'Failed to get location');
+      console.error(error);
+      return false;
+    }
+  };
 
   const handleSendEmergency = async () => {
     if (!accidentType || !numberOfPeople) {
@@ -31,33 +60,8 @@ export default function ImageEmergency() {
       return;
     }
 
-
-    const getCurrentLocation = async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync(); // Request permission
-      if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Allow the app to use the location services');
-        return;
-      }
-
-      const { coords } = await Location.getCurrentPositionAsync();
-      if (coords) {
-        setLatitude(coords.latitude);
-        setLongitude(coords.longitude);
-        
-        let response = await Location.reverseGeocodeAsync({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        });
-
-        for (let item of response) {
-          let address = ${item.name}, ${item.city}, ${item.postalCode};
-          setDisplayCurrentAddress(address);
-        }
-      }
-    };
-
-
-    await getCurrentLocation();
+    const locationFetched = await getCurrentLocation();
+    if (!locationFetched) return;
 
     const data = {
       accident_type: accidentType,
@@ -69,16 +73,13 @@ export default function ImageEmergency() {
 
     try {
       const response = await db.post('/emergency', data, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
 
-      const result = response.data;
       if (response.status === 200) {
-        Alert.alert('Success', result.message || 'Emergency details shared successfully!');
+        Alert.alert('Success', response.data.message || 'Emergency details shared successfully!');
       } else {
-        Alert.alert('Error', result.message || 'Failed to send details');
+        Alert.alert('Error', response.data.message || 'Failed to send details');
       }
     } catch (error) {
       Alert.alert('Error', 'Something went wrong');
@@ -93,36 +94,22 @@ export default function ImageEmergency() {
       {!accidentType && (
         <View style={styles.imageContainer}>
           <Text style={styles.label}>Select Type of Accident</Text>
-          <TouchableOpacity onPress={() => setAccidentType('road')}>
-            <Image source={accidentImages.road} style={styles.image} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setAccidentType('fire')}>
-            <Image source={accidentImages.fire} style={styles.image} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setAccidentType('pregnancy')}>
-            <Image source={accidentImages.pregnancy} style={styles.image} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setAccidentType('health')}>
-            <Image source={accidentImages.health} style={styles.image} />
-          </TouchableOpacity>
+          {Object.keys(accidentImages).map((type) => (
+            <TouchableOpacity key={type} onPress={() => setAccidentType(type)}>
+              <Image source={accidentImages[type]} style={styles.image} />
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 
       {accidentType && !numberOfPeople && (
         <View style={styles.imageContainer}>
           <Text style={styles.label}>Select Number of People Affected</Text>
-          <TouchableOpacity onPress={() => setNumberOfPeople('0-1')}>
-            <Image source={numberOfPeopleImages['0-1']} style={styles.image} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setNumberOfPeople('1-5')}>
-            <Image source={numberOfPeopleImages['1-5']} style={styles.image} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setNumberOfPeople('5-10')}>
-            <Image source={numberOfPeopleImages['5-10']} style={styles.image} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setNumberOfPeople('10-20')}>
-            <Image source={numberOfPeopleImages['10-20']} style={styles.image} />
-          </TouchableOpacity>
+          {Object.keys(numberOfPeopleImages).map((count) => (
+            <TouchableOpacity key={count} onPress={() => setNumberOfPeople(count)}>
+              <Image source={numberOfPeopleImages[count]} style={styles.image} />
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 

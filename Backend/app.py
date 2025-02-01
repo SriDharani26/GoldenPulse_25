@@ -11,7 +11,7 @@ import speech_recognition as sr
 
 load_dotenv()
 
-app = Flask(_name_)
+app = Flask(__name__)
 CORS(app)  
 
 UPLOAD_FOLDER = './uploads'
@@ -107,6 +107,6 @@ def emergency():
 
 
     
-if _name_ == '_main_':
+if __name__ == '__main__':
     app.config['DEBUG'] = False
     app.run(host='0.0.0.0', port=5000)
