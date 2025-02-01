@@ -1,10 +1,18 @@
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, View, StyleSheet,Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import axios from 'axios'; 
+import db from "@/api/api";
+
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 
 export default function App() {
+  const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading.....');
+  const [locationServicesEnabled, setLocationServicesEnabled] = useState(false);
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
 
   const [recording, setRecording] = useState(null);
   const [recordingStatus, setRecordingStatus] = useState('idle');
@@ -96,42 +104,90 @@ export default function App() {
     }
   }
 
-
   async function sendAudioToBackend(audioUri) {
-    const formData = new FormData();
-    formData.append('audio', {
-      uri: audioUri,
-      type: 'audio/wav',  
-      name: 'audio.wav'   
-    });
-
     try {
-      console.log('Sending audio to backend...');
-      const response = await axios.post('http://10.11.52.129:5000/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data', 
+        const fileInfo = await FileSystem.getInfoAsync(audioUri);
+        if (!fileInfo.exists) {
+            console.error("Audio file does not exist:", audioUri);
+            alert("Error: Audio file not found.");
+            return;
         }
+
+        const formData = new FormData();
+        formData.append('audio', {
+            uri: audioUri,
+            type: 'audio/wav',  // Ensure it's correctly set
+            name: 'audio.wav'    
+        });
+
+        console.log('Sending audio file:', audioUri);
+
+        const response = await db.post('upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data', 
+            }
+        });
+
+        if (response.status === 200) {
+            alert('Audio uploaded successfully!');
+        } else {
+            console.log('Error uploading audio:', response.data);
+            alert('Error uploading audio');
+        }
+    } catch (error) {
+        console.error('Error sending audio: ', error);
+        alert('Error sending audio: ' + error.message);
+    }
+}
+
+  useEffect(() => {
+    checkIfLocationEnabled();
+    getCurrentLocation();
+  }, []);
+
+  const checkIfLocationEnabled = async () => {
+    let enabled = await Location.hasServicesEnabledAsync(); // returns true or false
+    if (!enabled) {
+      Alert.alert('Location not enabled', 'Please enable your Location', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'OK' },
+      ]);
+    } else {
+      setLocationServicesEnabled(enabled);
+    }
+  };
+
+  const getCurrentLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync(); // Request permission
+    if (status !== 'granted') {
+      Alert.alert('Permission denied', 'Allow the app to use the location services');
+      return;
+    }
+
+    const { coords } = await Location.getCurrentPositionAsync();
+    if (coords) {
+      setLatitude(coords.latitude);
+      setLongitude(coords.longitude);
+      
+      let response = await Location.reverseGeocodeAsync({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
       });
 
-      if (response.status === 200) {
-        console.log('Audio uploaded successfully', response.data);
-        alert('Audio uploaded successfully!');
-      } else {
-        console.log('Error uploading audio:', response.data);
-        alert('Error uploading audio');
+      for (let item of response) {
+        let address = `${item.name}, ${item.city}, ${item.postalCode}`;
+        setDisplayCurrentAddress(address);
       }
-    } catch (error) {
-      console.error('Error sending audio: ', error);
-      alert('Error sending audio: ' + error.message);
     }
-  }
-
+  };
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={handleRecordButtonPress}>
         <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
       </TouchableOpacity>
       <Text style={styles.recordingStatusText}>{`Recording status: ${recordingStatus}`}</Text>
+      <Text>{latitude}</Text>
+      <Text>{longitude}</Text>
     </View>
   );
 }
