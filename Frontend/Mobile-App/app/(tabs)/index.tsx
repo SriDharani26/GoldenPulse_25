@@ -1,178 +1,164 @@
-import { Text, TouchableOpacity, View, StyleSheet, Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-
-import db from "@/api/api";
 import * as Location from 'expo-location';
+import { Card, Text } from 'react-native-paper';
+import db from "@/api/api";
 
 export default function App() {
-  const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading.....');
+  const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading...');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
-  const [recording, setRecording] = useState(null);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingStatus, setRecordingStatus] = useState('idle');
-  const [audioPermission, setAudioPermission] = useState(null);
+  const [audioPermission, setAudioPermission] = useState<boolean | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     async function getPermission() {
-      await Audio.requestPermissionsAsync().then((permission) => {
-        console.log('Permission Granted: ' + permission.granted);
+      try {
+        const permission = await Audio.requestPermissionsAsync();
         setAudioPermission(permission.granted);
-      }).catch(error => {
-        console.log(error);
-      });
+      } catch (error) {
+        console.error('Error requesting audio permission:', error);
+      }
     }
 
     getPermission();
     getCurrentLocation();
 
     return () => {
-      if (recording) {
-        stopRecording();
-      }
+      if (recording) stopRecording();
     };
   }, []);
 
   async function startRecording() {
     try {
-      if (audioPermission) {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true
-        });
+      if (!audioPermission) {
+        Alert.alert('Permission Required', 'Audio recording permission not granted');
+        return;
       }
 
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const newRecording = new Audio.Recording();
-      console.log('Starting Recording');
       await newRecording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
       await newRecording.startAsync();
       setRecording(newRecording);
       setRecordingStatus('recording');
-
+      setIsRecording(true); // Set recording state
     } catch (error) {
-      console.error('Failed to start recording', error);
+      console.error('Failed to start recording:', error);
     }
   }
 
   async function stopRecording() {
     try {
-      if (recordingStatus === 'recording') {
-        console.log('Stopping Recording');
-        await recording.stopAndUnloadAsync();
-        const recordingUri = recording.getURI();
+      if (recordingStatus !== 'recording' || !recording) return;
 
-        const fileName = recording-${Date.now()}.wav;  
-        const targetDirectory = FileSystem.documentDirectory + 'recordings/';
-        await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true });
+      await recording.stopAndUnloadAsync();
+      const recordingUri = recording.getURI();
 
-        const targetFilePath = targetDirectory + fileName;
-        await FileSystem.moveAsync({
-          from: recordingUri,
-          to: targetFilePath
-        });
+      const fileName = `recording-${Date.now()}.wav`;
+      const targetDirectory = FileSystem.documentDirectory + 'recordings/';
+      await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true });
 
-        const fileInfo = await FileSystem.getInfoAsync(targetFilePath);
-        console.log('Audio file saved at:', fileInfo.uri); 
+      const targetFilePath = targetDirectory + fileName;
+      await FileSystem.moveAsync({ from: recordingUri!, to: targetFilePath });
 
-        const playbackObject = new Audio.Sound();
-        await playbackObject.loadAsync({ uri: fileInfo.uri });
-        await playbackObject.playAsync();
+      setRecording(null);
+      setRecordingStatus('stopped');
+      setIsRecording(false); // Reset recording state
 
-        setRecording(null);
-        setRecordingStatus('stopped');
-
-        return fileInfo.uri;  
-      }
+      sendAudioToBackend(targetFilePath);
     } catch (error) {
-      console.error('Failed to stop recording', error);
+      console.error('Failed to stop recording:', error);
     }
   }
 
   async function handleRecordButtonPress() {
     if (recording) {
-      const audioUri = await stopRecording(recording);
-      if (audioUri) {
-        console.log('Saved audio file to', audioUri);
-        await sendAudioToBackend(audioUri); 
-      }
+      await stopRecording();
     } else {
       await startRecording();
     }
   }
 
-  async function sendAudioToBackend(audioUri) {
+  async function sendAudioToBackend(audioUri: string) {
     try {
       const fileInfo = await FileSystem.getInfoAsync(audioUri);
-  
       if (!fileInfo.exists) {
-        console.error("Audio file does not exist:", audioUri);
-        alert("Error: Audio file not found.");
+        Alert.alert('Error', 'Audio file not found.');
         return;
       }
-  
-      console.log('Sending audio file:', audioUri);
-      console.log('File info:', fileInfo);
-  
-      const formData = new FormData();
-      formData.append('audio', {
-        uri: audioUri,
-        type: 'audio/wav',
-        name: 'audio.wav', 
-      });
 
-     
+      const formData = new FormData();
+      formData.append('audio', { uri: audioUri, type: 'audio/wav', name: 'audio.wav' });
       formData.append('latitude', latitude);
       formData.append('longitude', longitude);
-  
-      const response = await db.post('upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        }
-      });
-  
+
+      const response = await db.post('upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+
       if (response.status === 200) {
-        alert('Audio uploaded successfully!');
+        Alert.alert('Success', 'Audio uploaded successfully!');
       }
     } catch (error) {
+      Alert.alert('Error', 'Failed to send audio.');
       console.error('Error sending audio:', error);
-      alert('Error sending audio: ' + error.message);
     }
   }
 
   const getCurrentLocation = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync(); // Request permission
-    if (status !== 'granted') {
-      Alert.alert('Permission denied', 'Allow the app to use the location services');
-      return;
-    }
-
-    const { coords } = await Location.getCurrentPositionAsync();
-    if (coords) {
-      setLatitude(coords.latitude);
-      setLongitude(coords.longitude);
-      
-      let response = await Location.reverseGeocodeAsync({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      });
-
-      for (let item of response) {
-        let address = ${item.name}, ${item.city}, ${item.postalCode};
-        setDisplayCurrentAddress(address);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Allow the app to use location services');
+        return;
       }
+
+      const { coords } = await Location.getCurrentPositionAsync();
+      if (coords) {
+        setLatitude(coords.latitude);
+        setLongitude(coords.longitude);
+
+        const response = await Location.reverseGeocodeAsync({ latitude: coords.latitude, longitude: coords.longitude });
+        if (response.length > 0) {
+          let item = response[0];
+          setDisplayCurrentAddress(`${item.name}, ${item.city}, ${item.postalCode}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching location:', error);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={handleRecordButtonPress}>
-        <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
+    <View style={[styles.container, isRecording && styles.recordingContainer]}>
+      {/* Record Button */}
+      <TouchableOpacity
+        style={[styles.button, isRecording && styles.recordingButton]}
+        onPress={handleRecordButtonPress}
+        activeOpacity={0.7}>
+        <Text style={[styles.buttonText, isRecording && styles.recordingButtonText]}>
+          {isRecording ? 'Stop Recording' : 'Start Recording'}
+        </Text>
       </TouchableOpacity>
-      <Text style={styles.recordingStatusText}>{Recording status: ${recordingStatus}}</Text>
-      <Text>{latitude}</Text>
-      <Text>{longitude}</Text>
-      <Text>{displayCurrentAddress}</Text>
+
+      {/* Location & Status Details */}
+      {!isRecording && (
+        <Card style={styles.infoCard}>
+          <Card.Content>
+            <Text style={styles.label}>Recording Status:</Text>
+            <Text>{recordingStatus}</Text>
+            <Text style={styles.label}>Latitude:</Text>
+            <Text>{latitude ?? 'Fetching...'}</Text>
+            <Text style={styles.label}>Longitude:</Text>
+            <Text>{longitude ?? 'Fetching...'}</Text>
+            <Text style={styles.label}>Address:</Text>
+            <Text>{displayCurrentAddress}</Text>
+          </Card.Content>
+        </Card>
+      )}
     </View>
   );
 }
@@ -180,22 +166,41 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: 'white',
+  },
+  recordingContainer: {
+    backgroundColor: 'red', // Changes background color when recording starts
   },
   button: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 128,
-    height: 128,
-    borderRadius: 64,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     backgroundColor: 'red',
   },
+  recordingButton: {
+    backgroundColor: 'white',
+  },
   buttonText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: 'bold',
     color: 'white',
   },
-  recordingStatusText: {
-    marginTop: 16,
+  recordingButtonText: {
+    color: 'red',
+  },
+  infoCard: {
+    width: '90%',
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: 'white',
+  },
+  label: {
+    fontWeight: 'bold',
+    marginTop: 5,
   },
 });
