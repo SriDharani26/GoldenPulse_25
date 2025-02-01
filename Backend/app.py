@@ -92,8 +92,10 @@ def upload_audio():
         elif(emergency_type == "Landslide" or emergency_type == "Landslide"):
             emergency_type = "landslide"
             
-        thread = threading.Thread(target=predict, args=( injured_people,emergency_type,doc_id))
-        thread.start()
+        thread1 = threading.Thread(target=predict, args=( number_of_people,accident_type,doc_id))
+        thread2 = threading.Thread(target=predict_severity, args=( number_of_people,accident_type,doc_id))
+        thread1.start()
+        thread2.start()
 
         return response, 200
 
@@ -248,8 +250,10 @@ def emergency():
             
         
             
-        thread = threading.Thread(target=predict, args=( number_of_people,accident_type,doc_id))
-        thread.start()
+        thread1 = threading.Thread(target=predict, args=( number_of_people,accident_type,doc_id))
+        thread2 = threading.Thread(target=predict_severity, args=( number_of_people,accident_type,doc_id))
+        thread1.start()
+        thread2.start()
 
         return response, 200
     
@@ -264,19 +268,36 @@ model = joblib.load(model_path)
 label_encoder = joblib.load(encoder_path)
 
 @app.route('/predict_severity', methods=['POST'])
-def predict_severity():
-    data = request.get_json()
-    accident_type = data.get("accident_type")
-    num_injured = data.get("num_injured")
-    
-    if not accident_type or num_injured is None:
-        return jsonify({"error": "Invalid input"}), 400
-    
-    accident_type_encoded = label_encoder.transform([accident_type])[0]
-    input_features = [[accident_type_encoded, num_injured]]
-    severity_index = model.predict(input_features)[0]
-    
-    return jsonify({"predicted_severity_index": severity_index})
+def predict_severity(num_injured, accident_type,doc_id):
+    # data = request.get_json()
+    # accident_type = data.get("accident_type")
+    # num_injured = data.get("num_injured")
+    with app.app_context():
+        print("Predicting severity...")
+        if not accident_type or num_injured is None:
+            return jsonify({"error": "Invalid input"}), 400
+        
+        accident_type_encoded = label_encoder.transform([accident_type])[0]
+        input_features = [[accident_type_encoded, num_injured]]
+        severity_index = model.predict(input_features)[0]
+        response = {
+                "Severity index": severity_index[0],
+                
+            }
+        severity_value = float(severity_index[0]) 
+
+        response = {
+            "Severity index": severity_value
+        }
+
+        print(severity_value)
+
+        emergency_collection.update_one(
+            {"_id": ObjectId(doc_id)}, 
+            {"$set": response}
+        )
+        print("Updated emergency record with severity index.")    
+        return jsonify({"predicted_severity_index": severity_index})
 
 
 @app.route('/get_shortest_travel_time', methods=['POST'])
