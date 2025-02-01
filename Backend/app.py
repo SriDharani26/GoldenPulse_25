@@ -34,36 +34,33 @@ db = client['Emergency']
 emergency_collection = db['Records']
 
 @app.route('/upload', methods=['POST'])
+
 def upload_audio():
     try:
-        print(request.files['audio'])
         if 'audio' not in request.files:
             return jsonify({'message': 'No audio file part'}), 400
 
-        print('first step')
         audio_file = request.files['audio']
         latitude = request.form.get('latitude')
         longitude = request.form.get('longitude')
-        
-        print(f"Latitude: {latitude}, Longitude: {longitude}")
 
-    
         if audio_file.filename == '':
             return jsonify({'message': 'No selected file'}), 400
-        
-        print('second step')
 
         if not audio_file.filename.endswith('.wav'):
             return jsonify({'message': 'Only .wav files are allowed'}), 400
 
-        print('third step')
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_file.filename)
         audio_file.save(filepath)
 
-        print('fouth step')
-        analyse_audio()
+   
+        emergency_type, injured_people = analyse_audio(filepath)
+
+        if emergency_type == "Unknown" and injured_people == 0:
+            return jsonify({'message': 'Failed to analyze the audio for emergency details'}), 500
+
+    
         reporting_time = datetime.utcnow()
-        emergency_type, injured_people = analyse_audio()
         emergency_data = {
             'accident_type': emergency_type,
             'number_of_people': injured_people,
@@ -71,16 +68,17 @@ def upload_audio():
             'longitude': longitude,
             'reporting_time': reporting_time
         }
-        
-        emergency_collection.insert_one(emergency_data) 
-        
-        return jsonify({'message': 'Audio file uploaded successfully!'}), 200
+
+        # Insert data into MongoDB
+        result = emergency_collection.insert_one(emergency_data)
+
+        return jsonify({'message': 'Audio file uploaded and data saved successfully!', 'id': str(result.inserted_id)}), 200
 
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 
-def analyse_audio():
-    audio_file = "uploads/audio.wav"
+
+def analyse_audio(audio_file):
     converted_audio_file = "uploads/converted_audio.wav"
 
     def convert_to_wav(input_file, output_file):
@@ -120,48 +118,43 @@ def analyse_audio():
             return None
 
     def extract_emergency_details(text):
-            nlp = spacy.load("en_core_web_sm")
-            
+        nlp = spacy.load("en_core_web_sm")
 
-    
-            fire_keywords = {"fire", "burning", "flames", "smoke"}
-            road_accident_keywords = {"road accident", "crash", "collision", "vehicle", "hit"}
-            building_collapse_keywords = {"building collapse", "collapsed", "trapped", "structure failure"}
-            landslide_keywords = {"landslide", "mudslide", "rockslide"}
-            injury_keywords = {"injured", "hurt", "wounded","died","colletral damage","affected","bleeding","severe", "casualties", "trapped", "people", "members"}
+        fire_keywords = {"fire", "burning", "flames", "smoke"}
+        road_accident_keywords = {"road accident", "crash", "collision", "vehicle", "hit"}
+        building_collapse_keywords = {"building collapse", "collapsed", "trapped", "structure failure"}
+        landslide_keywords = {"landslide", "mudslide", "rockslide"}
+        injury_keywords = {"injured", "hurt", "wounded","died","collateral damage","affected","bleeding","severe", "casualties", "trapped", "people", "members"}
 
+        emergency_type = "Unknown"
+        injured_people = 0
 
-            emergency_type = "Unknown"
-            injured_people = 0
+        lower_text = text.lower()
 
-            
-            lower_text = text.lower()
+        if any(word in lower_text for word in fire_keywords):
+            emergency_type = "Fire"
+        elif any(word in lower_text for word in road_accident_keywords):
+            emergency_type = "Road Accident"
+        elif any(word in lower_text for word in building_collapse_keywords):
+            emergency_type = "Building Collapse"
+        elif any(word in lower_text for word in landslide_keywords):
+            emergency_type = "Landslide"
+        else:
+            emergency_type = "Unknown"  
 
-            if any(word in lower_text for word in fire_keywords):
-                emergency_type = "Fire"
-            elif any(word in lower_text for word in road_accident_keywords):
-                emergency_type = "Road Accident"
-            elif any(word in lower_text for word in building_collapse_keywords):
-                emergency_type = "Building Collapse"
-            elif any(word in lower_text for word in landslide_keywords):
-                emergency_type = "Landslide"
-            else:
-                emergency_type = "Unknown"  
+        injured_people = 0
+        words = text.split()
 
-            injured_people = 0
-            words = text.split()
-
-            for i, word in enumerate(words):
-                if word.lower() in injury_keywords:
-
-                    for j in range(max(0, i - 3), min(len(words), i + 3)):
-                        if words[j].isdigit():
-                            injured_people = int(words[j])
-                            break
-                    if injured_people > 0:
+        for i, word in enumerate(words):
+            if word.lower() in injury_keywords:
+                for j in range(max(0, i - 3), min(len(words), i + 3)):
+                    if words[j].isdigit():
+                        injured_people = int(words[j])
                         break
+                if injured_people > 0:
+                    break
                     
-            return emergency_type, injured_people
+        return emergency_type, injured_people
 
     text = transcribe_audio(audio_file)
 

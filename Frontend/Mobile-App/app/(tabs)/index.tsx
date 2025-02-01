@@ -4,6 +4,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import { Card, Text } from 'react-native-paper';
+import * as Speech from 'expo-speech';  // Importing Speech module
 import db from "@/api/api";
 
 export default function App() {
@@ -25,8 +26,14 @@ export default function App() {
       }
     }
 
+    // Request audio permission and get current location
     getPermission();
     getCurrentLocation();
+
+    // Voice prompt when the app starts
+    Speech.speak("Please report the accident type and the number of people affected.", {
+      language: 'en',
+    });
 
     return () => {
       if (recording) stopRecording();
@@ -46,7 +53,7 @@ export default function App() {
       await newRecording.startAsync();
       setRecording(newRecording);
       setRecordingStatus('recording');
-      setIsRecording(true); // Set recording state
+      setIsRecording(true); 
     } catch (error) {
       console.error('Failed to start recording:', error);
     }
@@ -103,7 +110,7 @@ export default function App() {
         Alert.alert('Success', 'Audio uploaded successfully!');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to send audio.');
+      Alert.alert('Error', 'No emergency detected.');
       console.error('Error sending audio:', error);
     }
   }
@@ -134,7 +141,6 @@ export default function App() {
 
   return (
     <View style={[styles.container, isRecording && styles.recordingContainer]}>
-      {/* Record Button */}
       <TouchableOpacity
         style={[styles.button, isRecording && styles.recordingButton]}
         onPress={handleRecordButtonPress}
@@ -144,7 +150,6 @@ export default function App() {
         </Text>
       </TouchableOpacity>
 
-      {/* Location & Status Details */}
       {!isRecording && (
         <Card style={styles.infoCard}>
           <Card.Content>
@@ -172,7 +177,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   recordingContainer: {
-    backgroundColor: 'red', // Changes background color when recording starts
+    backgroundColor: 'red', 
   },
   button: {
     alignItems: 'center',
