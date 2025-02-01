@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Image, Alert } from 'react-native';
+import { View, Alert, TouchableOpacity } from 'react-native';
 import { Button, Text, Card } from 'react-native-paper';
 import db from '@/api/api';
 import * as Location from 'expo-location';
@@ -12,10 +12,10 @@ const accidentImages = {
 };
 
 const numberOfPeopleImages = {
-  '0-1': require('@/assets/images/react-logo.png'),
-  '1-5': require('@/assets/images/react-logo.png'),
-  '5-10': require('@/assets/images/react-logo.png'),
-  '10-20': require('@/assets/images/react-logo.png'),
+  '0-1': require('@/assets/images/z.jpg'),
+  '1-5': require('@/assets/images/o_f.jpg'),
+  '5-10': require('@/assets/images/f_t.jpg'),
+  '10-20': require('@/assets/images/tp.jpg'),
 };
 
 export default function ImageEmergency() {
@@ -24,6 +24,7 @@ export default function ImageEmergency() {
   const [longitude, setLongitude] = useState(null);
   const [accidentType, setAccidentType] = useState(null);
   const [numberOfPeople, setNumberOfPeople] = useState(null);
+  const [currentStep, setCurrentStep] = useState(1); 
 
   const getCurrentLocation = async () => {
     try {
@@ -88,46 +89,82 @@ export default function ImageEmergency() {
     }
   };
 
+  const handleBack = () => {
+    if (currentStep === 2) {
+      setAccidentType(null); 
+      setCurrentStep(1); 
+    } else if (currentStep === 3) {
+      setNumberOfPeople(null);
+      setCurrentStep(2); 
+    }
+  };
+
   return (
     <View style={{ flex: 1, padding: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' }}>
       <Text variant="headlineSmall" style={{ color: 'black', marginBottom: 20 }}>
         Emergency Form
       </Text>
 
-      {!accidentType && (
+      {!accidentType && currentStep === 1 && (
         <View>
           <Text variant="titleMedium" style={{ color: 'black', textAlign: 'center', marginBottom: 10 }}>
             Select Type of Accident
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
             {Object.keys(accidentImages).map((type) => (
-              <Card key={type} mode="outlined" style={{ margin: 10 }} onPress={() => setAccidentType(type)}>
+              <Card key={type} mode="outlined" style={{ margin: 10 }} onPress={() => { setAccidentType(type); setCurrentStep(2); }}>
                 <Card.Cover source={accidentImages[type]} style={{ width: 140, height: 140 }} />
               </Card>
             ))}
           </View>
+
+          {currentStep > 1 && (
+            <TouchableOpacity onPress={handleBack} style={{ marginTop: 20 }}>
+              <Button mode="outlined" style={{ width: '80%' }}>
+                Back
+              </Button>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
-      {accidentType && !numberOfPeople && (
+      {accidentType && !numberOfPeople && currentStep === 2 && (
         <View>
           <Text variant="titleMedium" style={{ color: 'black', textAlign: 'center', marginBottom: 10 }}>
             Select Number of People Affected
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
             {Object.keys(numberOfPeopleImages).map((count) => (
-              <Card key={count} mode="outlined" style={{ margin: 10 }} onPress={() => setNumberOfPeople(count)}>
+              <Card key={count} mode="outlined" style={{ margin: 10 }} onPress={() => { setNumberOfPeople(count); setCurrentStep(3); }}>
                 <Card.Cover source={numberOfPeopleImages[count]} style={{ width: 140, height: 140 }} />
               </Card>
             ))}
           </View>
+
+          {currentStep > 1 && (
+            <TouchableOpacity onPress={handleBack} style={{ marginTop: 20 }}>
+              <Button mode="outlined" textColor='#1E3A8A'>
+                Back
+              </Button>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
-      {accidentType && numberOfPeople && (
-        <Button mode="contained" buttonColor="#1E3A8A" onPress={handleSendEmergency} style={{ marginTop: 20, width: '80%' }}>
-          Send Emergency
-        </Button>
+      {accidentType && numberOfPeople && currentStep === 3 && (
+        <View style={{ alignItems: 'center' }}>
+          <Button mode="contained" buttonColor="#1E3A8A" onPress={handleSendEmergency} style={{ marginTop: 20, width: '80%', height: 45 }}>
+            Send Emergency
+          </Button>
+
+          {currentStep > 1 && (
+            <TouchableOpacity onPress={handleBack} style={{ marginTop: 20 }}>
+              <Button mode="outlined" textColor='#1E3A8A' style={{ width: '80%' }}>
+                Back
+              </Button>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );
