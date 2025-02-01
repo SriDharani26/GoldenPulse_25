@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, Alert, StyleSheet } from 'react-native';
-import db from "@/api/api";
+import { View, Image, Alert } from 'react-native';
+import { Button, Text, Card } from 'react-native-paper';
+import db from '@/api/api';
 import * as Location from 'expo-location';
 
 const accidentImages = {
-  road: require('@/assets/images/react-logo.png'),
-  fire: require('@/assets/images/react-logo.png'),
-  pregnancy: require('@/assets/images/react-logo.png'),
-  health: require('@/assets/images/react-logo.png'),
+  road: require('@/assets/images/road.jpg'),
+  fire: require('@/assets/images/Fire.jpg'),
+  landslide: require('@/assets/images/landslide.jpg'),
+  building: require('@/assets/images/building.jpg'),
 };
 
 const numberOfPeopleImages = {
@@ -18,7 +19,7 @@ const numberOfPeopleImages = {
 };
 
 export default function ImageEmergency() {
-  const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading.....');
+  const [displayCurrentAddress, setDisplayCurrentAddress] = useState('Location Loading...');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [accidentType, setAccidentType] = useState(null);
@@ -43,7 +44,7 @@ export default function ImageEmergency() {
 
       if (response.length > 0) {
         let item = response[0];
-        let address =`${item.name}, ${item.city}, ${item.postalCode}`;
+        let address = `${item.name}, ${item.city}, ${item.postalCode}`;
         setDisplayCurrentAddress(address);
       }
       return true;
@@ -66,8 +67,8 @@ export default function ImageEmergency() {
     const data = {
       accident_type: accidentType,
       number_of_people: numberOfPeople,
-      latitude: latitude,
-      longitude: longitude,
+      latitude,
+      longitude,
       location_address: displayCurrentAddress,
     };
 
@@ -88,78 +89,46 @@ export default function ImageEmergency() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Emergency Form</Text>
+    <View style={{ flex: 1, padding: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' }}>
+      <Text variant="headlineSmall" style={{ color: 'black', marginBottom: 20 }}>
+        Emergency Form
+      </Text>
 
       {!accidentType && (
-        <View style={styles.imageContainer}>
-          <Text style={styles.label}>Select Type of Accident</Text>
-          {Object.keys(accidentImages).map((type) => (
-            <TouchableOpacity key={type} onPress={() => setAccidentType(type)}>
-              <Image source={accidentImages[type]} style={styles.image} />
-            </TouchableOpacity>
-          ))}
+        <View>
+          <Text variant="titleMedium" style={{ color: 'black', textAlign: 'center', marginBottom: 10 }}>
+            Select Type of Accident
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {Object.keys(accidentImages).map((type) => (
+              <Card key={type} mode="outlined" style={{ margin: 10 }} onPress={() => setAccidentType(type)}>
+                <Card.Cover source={accidentImages[type]} style={{ width: 140, height: 140 }} />
+              </Card>
+            ))}
+          </View>
         </View>
       )}
 
       {accidentType && !numberOfPeople && (
-        <View style={styles.imageContainer}>
-          <Text style={styles.label}>Select Number of People Affected</Text>
-          {Object.keys(numberOfPeopleImages).map((count) => (
-            <TouchableOpacity key={count} onPress={() => setNumberOfPeople(count)}>
-              <Image source={numberOfPeopleImages[count]} style={styles.image} />
-            </TouchableOpacity>
-          ))}
+        <View>
+          <Text variant="titleMedium" style={{ color: 'black', textAlign: 'center', marginBottom: 10 }}>
+            Select Number of People Affected
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {Object.keys(numberOfPeopleImages).map((count) => (
+              <Card key={count} mode="outlined" style={{ margin: 10 }} onPress={() => setNumberOfPeople(count)}>
+                <Card.Cover source={numberOfPeopleImages[count]} style={{ width: 140, height: 140 }} />
+              </Card>
+            ))}
+          </View>
         </View>
       )}
 
       {accidentType && numberOfPeople && (
-        <TouchableOpacity style={styles.button} onPress={handleSendEmergency}>
-          <Text style={styles.buttonText}>Send Emergency</Text>
-        </TouchableOpacity>
+        <Button mode="contained" buttonColor="#1E3A8A" onPress={handleSendEmergency} style={{ marginTop: 20, width: '80%' }}>
+          Send Emergency
+        </Button>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  imageContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    marginBottom: 20,
-  },
-  image: {
-    width: 100,
-    height: 100,
-    margin: 10,
-    borderRadius: 10,
-  },
-  button: {
-    backgroundColor: '#4CAF50',
-    padding: 10,
-    borderRadius: 5,
-    width: '80%',
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-});
