@@ -12,7 +12,8 @@ import re
 import spacy
 from pydub import AudioSegment
 from severity import severity_bp
-
+from map import travel_bp
+from requirement import api_bp 
 load_dotenv()
 
 app = Flask(__name__)
@@ -217,6 +218,8 @@ def emergency():
 
 
 app.register_blueprint(severity_bp)
+app.register_blueprint(travel_bp)
+app.register_blueprint(api_bp)
 
 
 if _name_ == '_main_':
