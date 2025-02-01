@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FaBell, FaSignOutAlt, FaUser } from "react-icons/fa";
 import Sidebar from "./components/Sidebar";
 import ResourcesUpdation from "./pages/ResourceUpdation"
 import Alerts from "./pages/Alerts";
@@ -12,7 +11,7 @@ function App() {
   const dropdownRef = useRef(null);
 
   const user = {
-    name: "John Doe",
+    name: "Test User",
     avatar: "https://via.placeholder.com/40",
   };
 
