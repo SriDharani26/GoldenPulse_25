@@ -5,16 +5,17 @@ import speech_recognition as sr
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from dotenv import load_dotenv
-import os
+from bson import ObjectId
+from datetime import datetime
+import threading
+import time
 import numpy as np
 from datetime import datetime
 import speech_recognition as sr
-import re
 import spacy
 from pydub import AudioSegment
 import threading
 load_dotenv()
-import pickle
 import joblib
 
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
@@ -76,16 +77,22 @@ def upload_audio():
 
         
         result = emergency_collection.insert_one(emergency_data)
+        doc_id = result.inserted_id
+     
         print("came here")
-        # response=predict(emergency_type, injured_people)
-        # print("not came here")
-        # return jsonify({'message': 'Audio file uploaded and data saved successfully!'}), 200
+        
         
         response = jsonify({'message': 'Audio file uploaded and data saved successfully!'})
         if(emergency_type == "Fire Accident" or emergency_type == "Fire"):
             emergency_type = "fire"
+        elif(emergency_type == "Road Accident" or emergency_type == "Road"):   
+            emergency_type = "road"
+        elif(emergency_type == "Building Collapse" or emergency_type == "Building"):
+            emergency_type = "building"
+        elif(emergency_type == "Landslide" or emergency_type == "Landslide"):
+            emergency_type = "landslide"
             
-        thread = threading.Thread(target=predict, args=( injured_people,emergency_type))
+        thread = threading.Thread(target=predict, args=( injured_people,emergency_type,doc_id))
         thread.start()
 
         return response, 200
@@ -216,13 +223,32 @@ def emergency():
             'longitude': longitude,
             'Reporting_Time': reporting_time  
         }
-        emergency_collection.insert_one(emergency_data) 
+        result=emergency_collection.insert_one(emergency_data) 
+        doc_id = result.inserted_id
+        print(f"Emergency data saved with ID: {doc_id}")
         print("Emergency data saved to database.")
         response = jsonify({'message': 'Audio file uploaded and data saved successfully!'})
         if(accident_type == "Fire Accident" or accident_type == "Fire"):
             accident_type = "fire"
+        elif(accident_type == "Road Accident" or accident_type == "Road"):
+            accident_type = "road" 
+        elif(accident_type == "Building Collapse" or accident_type == "Building"):
+            accident_type = "building"
+        elif(accident_type == "Landslide" or accident_type == "Landslide"):
+            accident_type = "landslide"
             
-        thread = threading.Thread(target=predict, args=( number_of_people,emergency_type))
+        if(number_of_people=='0-1'):
+            number_of_people=1
+        elif(number_of_people=='1-5'):
+            number_of_people=5
+        elif(number_of_people=='5-10'):
+            number_of_people=10
+        elif(number_of_people=='10+'):
+            number_of_people=15
+            
+        
+            
+        thread = threading.Thread(target=predict, args=( number_of_people,accident_type,doc_id))
         thread.start()
 
         return response, 200
@@ -282,27 +308,37 @@ def get_shortest_travel_time():
 
     return jsonify(result)
 
-model = joblib.load("random_forest_model.pkl")
-label_encoder = joblib.load("label_encoder.pkl")
+model = joblib.load("requirement/random_forest_model.pkl")
+label_encoder = joblib.load("requirement/label_encoder.pkl")
 
 @app.route('/predict', methods=['POST'])
-def predict():
-    data = request.json
-    num_injured = data['num_injured']
-    accident_type = data['accident_type']
+def predict(num_injured, accident_type,doc_id):
+    # data = request.json
+    # num_injured = data['num_injured']
+    # accident_type = data['accident_type']
+     with app.app_context():
+        print("Predicting...")
+        accident_type_encoded = label_encoder.transform([accident_type])[0]
+        input_data = np.array([[num_injured, accident_type_encoded]])
+        prediction = model.predict(input_data)
 
-    accident_type_encoded = label_encoder.transform([accident_type])[0]
-    input_data = np.array([[num_injured, accident_type_encoded]])
-    prediction = model.predict(input_data)
-
-    response = {
-        "Number of Ambulances": int(prediction[0][0]),
-        "Number of Emergency Beds": int(prediction[0][1])
-    }
-    return jsonify(response)
-
-
-
+        time.sleep(2)
+        
+        response = {
+            "Number of Ambulances": int(prediction[0][0]),
+            "Number of Emergency Beds": int(prediction[0][1]),
+            "Number of fire service": int(prediction[0][2])
+        }
+        print(doc_id)
+        print(response)
+        
+        emergency_collection.update_one(
+                {"_id": ObjectId(doc_id)}, 
+                {"$set": response}
+            )
+        print("Updated emergency record with predictions.")
+        return jsonify(response)
+    
 if __name__ == '__main__':
     app.config['DEBUG'] = False
     app.run(host='0.0.0.0', port=5000)
