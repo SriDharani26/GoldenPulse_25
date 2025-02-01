@@ -75,7 +75,7 @@ export default function App() {
 
       setRecording(null);
       setRecordingStatus('stopped');
-      setIsRecording(false); // Reset recording state
+      setIsRecording(false); 
 
       sendAudioToBackend(targetFilePath);
     } catch (error) {

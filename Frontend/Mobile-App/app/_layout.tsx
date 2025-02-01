@@ -28,7 +28,7 @@ export default function RootLayout() {
   }
 
   return (
-    <PaperProvider theme={colorScheme === 'dark' ? MD3DarkTheme : MD3LightTheme}>
+    <PaperProvider theme={colorScheme === 'dark' ? MD3LightTheme : MD3LightTheme}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
