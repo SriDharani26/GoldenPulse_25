@@ -15,7 +15,10 @@ from severity import severity_bp
 from map import travel_bp
 from requirement import api_bp 
 load_dotenv()
+import pickle
+import joblib
 
+API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 app = Flask(__name__)
 CORS(app)  
 
@@ -216,10 +219,80 @@ def emergency():
         print(f"Error saving data to MongoDB: {e}")
         return jsonify({"message": "Error saving emergency data"}), 500
 
+model_path = os.path.join(os.getcwd(), "severity", "severity_model.pkl")
+encoder_path = os.path.join(os.getcwd(), "severity", "label_encoder.pkl")
 
-app.register_blueprint(severity_bp)
-app.register_blueprint(travel_bp)
-app.register_blueprint(api_bp)
+model = joblib.load(model_path)
+label_encoder = joblib.load(encoder_path)
+
+@app.route('/predict_severity', methods=['POST'])
+def predict_severity():
+    data = request.get_json()
+    accident_type = data.get("accident_type")
+    num_injured = data.get("num_injured")
+    
+    if not accident_type or num_injured is None:
+        return jsonify({"error": "Invalid input"}), 400
+    
+    accident_type_encoded = label_encoder.transform([accident_type])[0]
+    input_features = [[accident_type_encoded, num_injured]]
+    severity_index = model.predict(input_features)[0]
+    
+    return jsonify({"predicted_severity_index": severity_index})
+
+
+@app.route('/get_shortest_travel_time', methods=['POST'])
+def get_shortest_travel_time():
+    print("Getting shortest travel time...")
+    data = request.get_json()
+    origin_lat = data['origin_lat']  
+    origin_lng = data['origin_lng'] 
+    destinations = data['destinations']  
+
+    travel_times = []
+
+    for destination in destinations:
+        destination_lat, destination_lng = destination
+        url = f'https://maps.googleapis.com/maps/api/distancematrix/json?mode=driving&units=imperial&origins={origin_lat},{origin_lng}&destinations={destination_lat},{destination_lng}&key={API_KEY}'
+
+        response = requests.get(url)
+        data = response.json()
+        print(data)
+
+        travel_time = data['rows'][0]['elements'][0]['duration']['value'] 
+        travel_times.append((destination, travel_time))
+
+    travel_times.sort(key=lambda x: x[1])
+
+    result = {
+        'sorted_destinations': travel_times
+    }
+
+    return jsonify(result)
+
+model = joblib.load("random_forest_model.pkl")
+label_encoder = joblib.load("label_encoder.pkl")
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.json
+    num_injured = data['num_injured']
+    accident_type = data['accident_type']
+
+    accident_type_encoded = label_encoder.transform([accident_type])[0]
+    input_data = np.array([[num_injured, accident_type_encoded]])
+    prediction = model.predict(input_data)
+
+    response = {
+        "Number of Ambulances": int(prediction[0][0]),
+        "Number of Emergency Beds": int(prediction[0][1])
+    }
+    return jsonify(response)
+
+
+# app.register_blueprint(severity_bp)
+# app.register_blueprint(travel_bp)
+# app.register_blueprint(api_bp)
 
 
 if _name_ == '_main_':
