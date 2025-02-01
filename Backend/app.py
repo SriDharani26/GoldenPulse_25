@@ -6,14 +6,13 @@ from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
+import numpy as np
 from datetime import datetime
 import speech_recognition as sr
 import re
 import spacy
 from pydub import AudioSegment
-from severity import severity_bp
-from map import travel_bp
-from requirement import api_bp 
+import threading
 load_dotenv()
 import pickle
 import joblib
@@ -34,6 +33,9 @@ if not mongo_connection_string:
     raise ValueError("No MongoDB connection string found in environment variables")
 
 client = MongoClient(mongo_connection_string)
+
+require_model = joblib.load("requirement/random_forest_model.pkl")
+require_label_encoder = joblib.load("requirement/label_encoder.pkl")
 
 db = client['Emergency'] 
 emergency_collection = db['Records']
@@ -58,13 +60,11 @@ def upload_audio():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_file.filename)
         audio_file.save(filepath)
 
-   
         emergency_type, injured_people = analyse_audio(filepath)
+        print(emergency_type, injured_people)
+        
 
-        if emergency_type == "Unknown" and injured_people == 0:
-            return jsonify({'message': 'Failed to analyze the audio for emergency details'}), 500
-
-    
+        
         reporting_time = datetime.utcnow()
         emergency_data = {
             'accident_type': emergency_type,
@@ -74,10 +74,21 @@ def upload_audio():
             'reporting_time': reporting_time
         }
 
-        # Insert data into MongoDB
+        
         result = emergency_collection.insert_one(emergency_data)
+        print("came here")
+        # response=predict(emergency_type, injured_people)
+        # print("not came here")
+        # return jsonify({'message': 'Audio file uploaded and data saved successfully!'}), 200
+        
+        response = jsonify({'message': 'Audio file uploaded and data saved successfully!'})
+        if(emergency_type == "Fire Accident" or emergency_type == "Fire"):
+            emergency_type = "fire"
+            
+        thread = threading.Thread(target=predict, args=( injured_people,emergency_type))
+        thread.start()
 
-        return jsonify({'message': 'Audio file uploaded and data saved successfully!', 'id': str(result.inserted_id)}), 200
+        return response, 200
 
     except Exception as e:
         return jsonify({'message': str(e)}), 500
@@ -207,7 +218,15 @@ def emergency():
         }
         emergency_collection.insert_one(emergency_data) 
         print("Emergency data saved to database.")
-        return jsonify({"message": "Emergency details received successfully!"}), 200
+        response = jsonify({'message': 'Audio file uploaded and data saved successfully!'})
+        if(accident_type == "Fire Accident" or accident_type == "Fire"):
+            accident_type = "fire"
+            
+        thread = threading.Thread(target=predict, args=( number_of_people,emergency_type))
+        thread.start()
+
+        return response, 200
+    
     except Exception as e:
         print(f"Error saving data to MongoDB: {e}")
         return jsonify({"message": "Error saving emergency data"}), 500
@@ -263,14 +282,16 @@ def get_shortest_travel_time():
 
     return jsonify(result)
 
-model = joblib.load("random_forest_model.pkl")
-label_encoder = joblib.load("label_encoder.pkl")
+
 
 @app.route('/predict', methods=['POST'])
-def predict():
-    data = request.json
-    num_injured = data['num_injured']
-    accident_type = data['accident_type']
+def predict(num_injured, accident_type):
+    # data = request.json
+    # num_injured = data['num_injured']
+    # accident_type = data['accident_type']
+    print(num_injured)
+    print(accident_type)
+    print("this function called")
 
     accident_type_encoded = label_encoder.transform([accident_type])[0]
     input_data = np.array([[num_injured, accident_type_encoded]])
@@ -280,14 +301,11 @@ def predict():
         "Number of Ambulances": int(prediction[0][0]),
         "Number of Emergency Beds": int(prediction[0][1])
     }
+    print(response)
     return jsonify(response)
 
 
-# app.register_blueprint(severity_bp)
-# app.register_blueprint(travel_bp)
-# app.register_blueprint(api_bp)
 
-
-if _name_ == '_main_':
+if __name__ == '__main__':
     app.config['DEBUG'] = False
     app.run(host='0.0.0.0', port=5000)
