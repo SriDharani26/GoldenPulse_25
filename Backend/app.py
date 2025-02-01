@@ -266,21 +266,50 @@ def get_shortest_travel_time():
 model = joblib.load("random_forest_model.pkl")
 label_encoder = joblib.load("label_encoder.pkl")
 
+from flask import Flask, request, jsonify
+import joblib
+import numpy as np
+
+# Load the trained model and label encoder
+model = joblib.load("random_forest_model.pkl")
+label_encoder = joblib.load("label_encoder.pkl")
+
+app = Flask(__name__)
+
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.json
-    num_injured = data['num_injured']
-    accident_type = data['accident_type']
+    data = request.get_json()
 
-    accident_type_encoded = label_encoder.transform([accident_type])[0]
-    input_data = np.array([[num_injured, accident_type_encoded]])
-    prediction = model.predict(input_data)
+    # Extract input data
+    num_injured = data.get('Number of People Injured')
+    accident_type = data.get('Accident Type')
 
-    response = {
-        "Number of Ambulances": int(prediction[0][0]),
-        "Number of Emergency Beds": int(prediction[0][1])
+    if num_injured is None or accident_type is None:
+        return jsonify({"error": "Missing input data. Please provide 'Number of People Injured' and 'Accident Type'."}), 400
+
+    # Encode the accident type
+    try:
+        encoded_accident_type = label_encoder.transform([accident_type])[0]
+    except ValueError:
+        return jsonify({"error": f"Invalid 'Accident Type': {accident_type}"}), 400
+
+    # Prepare input for prediction
+    input_data = np.array([[num_injured, encoded_accident_type]])
+
+    # Make prediction
+    prediction = model.predict(input_data)[0]
+
+    result = {
+        "Predicted Number of Ambulances": prediction[0],
+        "Predicted Number of Emergency Beds": prediction[1],
+        "Predicted Number of Fire Engines": prediction[2]
     }
-    return jsonify(response)
+
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
 
 
 # app.register_blueprint(severity_bp)
