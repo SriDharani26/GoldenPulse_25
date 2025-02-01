@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
 import requests
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 app = Flask(__name__)
 
-API_KEY = 'AIzaSyBcI4KQ1vlpFTS8ku7pJ4pWkdySbbSEAhI'
+API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 
 @app.route('/get_shortest_travel_time', methods=['POST'])
 def get_shortest_travel_time():
