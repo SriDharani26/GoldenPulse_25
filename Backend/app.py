@@ -311,8 +311,9 @@ def get_shortest_travel_time():
     travel_times = []
 
     for destination in destinations:
-        destination_lat, destination_lng = destination
-        url = f'https://maps.googleapis.com/maps/api/distancematrix/json?mode=driving&units=imperial&origins={origin_lat},{origin_lng}&destinations={destination_lat},{destination_lng}&key={API_KEY}'
+        destination_lat = destination['lat']
+        destination_lng = destination['lng']
+        url = f'https://maps.googleapis.com/maps/api/distancematrix/json?mode=driving&units=imperial&origins={origin_lat},{origin_lng}&destinations={destination_lat},{destination_lng}&key=AIzaSyBcI4KQ1vlpFTS8ku7pJ4pWkdySbbSEAhI'
 
         response = requests.get(url)
         data = response.json()
@@ -360,6 +361,8 @@ def predict(num_injured, accident_type,doc_id):
         print("Updated emergency record with predictions.")
         return jsonify(response)
     
+    
+
 if __name__ == '__main__':
     app.config['DEBUG'] = False
     app.run(host='0.0.0.0', port=5000)

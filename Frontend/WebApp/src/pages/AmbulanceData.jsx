@@ -1,13 +1,49 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaAmbulance, FaMapMarkerAlt, FaUser, FaPhone, FaTimes } from "react-icons/fa";
+import axios from "axios";
+import { GoogleMap, LoadScript, DirectionsService, DirectionsRenderer } from "@react-google-maps/api";
 
 const ambulances = [
-  { id: 1, number: "AMB-101", location: "City Center", patient: { name: "Ak", age: 45, contact: "9876543210" } },
-  { id: 2, number: "AMB-102", location: "Highway 5", patient: { name: "Jk", age: 30, contact: "8765432109" } },
-  { id: 3, number: "AMB-103", location: "Downtown", patient: { name: "Mk", age: 55, contact: "7654321098" } },
-  { id: 4, number: "AMB-104", location: "North Park", patient: { name: "Ek", age: 40, contact: "6543210987" } },
-  { id: 5, number: "AMB-105", location: "West Avenue", patient: { name: "Dk", age: 35, contact: "5432109876" } },
+  { id: 1, number: "AMB-101", location: "City Center", patient: { name: "Ak", age: 45, contact: "9876543210" }, coords: [51.505, -0.09], hospitalCoords: [51.510, -0.08] },
+  { id: 2, number: "AMB-102", location: "Highway 5", patient: { name: "Jk", age: 30, contact: "8765432109" }, coords: [51.515, -0.10], hospitalCoords: [51.510, -0.08] },
+  { id: 3, number: "AMB-103", location: "Downtown", patient: { name: "Mk", age: 55, contact: "7654321098" }, coords: [51.520, -0.12], hospitalCoords: [51.510, -0.08] },
+  { id: 4, number: "AMB-104", location: "North Park", patient: { name: "Ek", age: 40, contact: "6543210987" }, coords: [51.525, -0.13], hospitalCoords: [51.510, -0.08] },
+  { id: 5, number: "AMB-105", location: "West Avenue", patient: { name: "Dk", age: 35, contact: "5432109876" }, coords: [51.530, -0.14], hospitalCoords: [51.510, -0.08] },
 ];
+
+const MapComponent = ({ origin, destination }) => {
+  const [response, setResponse] = useState(null);
+
+  useEffect(() => {
+    const fetchRoute = async () => {
+      const result = await axios.post("http://127.0.0.1:5000/get_shortest_travel_time", {
+          origin_lat: 37.7749,
+          origin_lng: -122.4194,
+          destinations: [
+            {
+              lat: 34.0522,
+              lng: -118.2437
+            }
+          ]
+      });
+      setResponse(result.data);
+    };
+
+    fetchRoute();
+  }, [origin, destination]);
+
+  return (
+    <LoadScript googleMapsApiKey="AIzaSyBcI4KQ1vlpFTS8ku7pJ4pWkdySbbSEAhI">
+      <GoogleMap
+        mapContainerStyle={{ height: "400px", width: "800px" }}
+        zoom={12}
+        center={{ lat: origin[0], lng: origin[1] }}
+      >
+        {response && <DirectionsRenderer directions={response} />}
+      </GoogleMap>
+    </LoadScript>
+  );
+};
 
 function AmbulanceData() {
   const [selectedAmbulance, setSelectedAmbulance] = useState(null);
@@ -65,7 +101,7 @@ function AmbulanceData() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
               <div className="bg-gray-200 h-full flex items-center justify-center rounded-lg">
-                <span className="text-gray-600">Map API Placeholder</span>
+                <MapComponent origin={selectedAmbulance.coords} destination={selectedAmbulance.hospitalCoords} />
               </div>
 
               <div className="bg-blue-50 p-4 rounded-lg h-full flex-col justify-between">
