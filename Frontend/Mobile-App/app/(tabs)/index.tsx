@@ -30,10 +30,6 @@ export default function App() {
     getPermission();
     getCurrentLocation();
 
-    // Voice prompt when the app starts
-    Speech.speak("Please report the accident type and the number of people affected.", {
-      language: 'en',
-    });
 
     return () => {
       if (recording) stopRecording();
@@ -141,6 +137,7 @@ export default function App() {
 
   return (
     <View style={[styles.container, isRecording && styles.recordingContainer]}>
+      <Text>English / தமிழ்</Text>
       <TouchableOpacity
         style={[styles.button, isRecording && styles.recordingButton]}
         onPress={handleRecordButtonPress}
