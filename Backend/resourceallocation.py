@@ -90,32 +90,56 @@ def get_shortest_travel_time(data):
         return None
 
 def allocate_resources(nearest_hospitals, nearest_ambulances, required_beds, required_ambulances):
-    allocated_resources = []
+    allocated_resources = {
+        "accident_lat": nearest_hospitals["origin_lat"],
+        "accident_lng": nearest_hospitals["origin_lng"],
+        "allocated_hospitals": [],
+        "allocated_ambulances": []
+    }
+
     allocated_beds = 0
     allocated_ambulances = 0
 
+    # Allocate hospitals
     for hospital in nearest_hospitals["destinations"]:
         if allocated_beds >= required_beds:
             break
-        hospital_lat, hospital_lng = hospital  # Latitude and Longitude
+        hospital_lat, hospital_lng = hospital
         hospital_data = hospitals_collection.find_one({"Latitude": hospital_lat, "Longitude": hospital_lng})
         
-        if hospital_data is None:
-            print(f"⚠️ Hospital with coordinates ({hospital_lat}, {hospital_lng}) not found in the database.")
+        if not hospital_data:
+            print(f"⚠️ Hospital at ({hospital_lat}, {hospital_lng}) not found in DB.")
             continue
         
-        available_beds = hospital_data.get("Accomodation", 0)  # Fetch actual available beds
-
+        available_beds = hospital_data.get("Accomodation", 0)
         beds_to_allocate = min(available_beds, required_beds - allocated_beds)
-        ambulances_to_allocate = min(beds_to_allocate, required_ambulances - allocated_ambulances)  # Allocate 1 ambulance per bed
-
-        
-
         allocated_beds += beds_to_allocate
-        allocated_ambulances += ambulances_to_allocate
 
-    # Save allocation details to the database
-    #allocated_resources_collection.insert_many(allocated_resources)
+        allocated_resources["allocated_hospitals"].append([hospital_lat, hospital_lng])
+
+    # Allocate ambulances (2 persons per ambulance)
+    persons_allocated = 0  # Track how many people have been assigned
+    for ambulance in nearest_ambulances["destinations"]:
+        if persons_allocated >= required_beds:  # Stop if all people are assigned
+            break
+        ambulance_lat, ambulance_lng = ambulance
+        ambulance_data = ambulances_collection.find_one({"Latitude": ambulance_lat, "Longitude": ambulance_lng})
+
+        if not ambulance_data:
+            print(f"⚠️ Ambulance at ({ambulance_lat}, {ambulance_lng}) not found in DB.")
+            continue
+
+        people_this_ambulance = min(2, required_beds - persons_allocated)  # Max 2 persons per ambulance
+        persons_allocated += people_this_ambulance
+        allocated_ambulances += 1
+
+        allocated_resources["allocated_ambulances"].append([ambulance_lat, ambulance_lng])
+
+    # Insert into the database
+    allocated_resources_collection.insert_one(allocated_resources)
+    print("✅ Resources allocated and updated in DB!")
+
+
 
 
 def fetch_requirements():
@@ -159,98 +183,3 @@ try:
 except ValueError as e:
     print(str(e))
 
-def fetch_latest_accident_location():
-    latest_record = records_collection.find_one({}, sort=[("_id", -1)])  # Get the latest record
-    if latest_record:
-        return [latest_record["latitude"], latest_record["longitude"]]
-    return None
-
-sorted_destinations = shortest_travel_time_hospitals
-am_sorted_destinations = shortest_travel_time_ambulances
-# Fetch the latest accident location
-accident_location = fetch_latest_accident_location()
-if not accident_location:
-    print(" No accident records found in the database.")
-    exit()
-
-def fetch_hospital_details(lat, long):
-    return hospitals_collection.find_one({"Latitude": lat, "Longitude": long})
-
-def fetch_ambulance_details(lat, long):
-    return ambulances_collection.find_one({"Latitude": lat, "Longitude": long, "Availability": 1})
-
-def allocate_resources(hospitals, ambulances, required_beds, required_amb):
-    remaining_beds = required_beds
-    remaining_ambs = (required_beds + 1) // 2  # 1 ambulance per 2 people
-    allocated_data = []
-
-    for hospital, ambulance in zip(hospitals, ambulances):
-        if not hospital or not ambulance:
-            continue  # Skip if hospital/ambulance is missing
-
-        hospital_id = hospital["_id"]
-        ambulance_id = ambulance["_id"]
-
-        available_beds = hospital["Accomodation"]
-        available_ambulances = ambulance["Availability"]
-
-        # Allocate beds
-        allocated_beds = min(remaining_beds, available_beds)
-        remaining_beds -= allocated_beds
-        hospitals_collection.update_one(
-            {"_id": hospital_id},
-            {"$inc": {"Accomodation": -allocated_beds}}
-        )
-
-        # Allocate ambulances (1 per 2 people)
-        allocated_amb = min(remaining_ambs, available_ambulances)
-        remaining_ambs -= allocated_amb
-        ambulances_collection.update_one(
-            {"_id": ambulance_id},
-            {"$inc": {"Availability": -allocated_amb}}
-        )
-
-        # Store ambulance locations as an array
-        ambulance_locations = [[ambulance["Latitude"], ambulance["Longitude"]] for _ in range(allocated_amb)]
-
-        allocated_data.append({
-            "Accident_Location": accident_location,
-            "Hospital_Location": [hospital["Latitude"], hospital["Longitude"]],
-            "Ambulances": ambulance_locations,  # Store as an array of lat-long pairs
-            "Allocated_Beds": allocated_beds,
-            "Allocated_Ambulances": allocated_amb
-        })
-
-        # Stop if all required beds and ambulances are allocated
-        if remaining_beds == 0 and remaining_ambs == 0:
-            print("✅ All required beds & ambulances have been allocated.")
-            break
-
-    if allocated_data:
-        allocated_resources_collection.insert_many(allocated_data)
-        print("✅ Allocation details saved in 'AllocatedResources' collection.")
-
-    if remaining_beds > 0 or remaining_ambs > 0:
-        print(f"⚠️ Not enough resources: {remaining_beds} beds and {remaining_ambs} ambulances still needed.")
-
-
-
-hospitals = []
-ambulances = []
-
-for hospital_data, ambulance_data in zip(sorted_destinations, am_sorted_destinations):
-    lat, long = hospital_data[0]
-    lat1, long1 = ambulance_data[0]
-
-    hospital = fetch_hospital_details(lat, long)
-    ambulance = fetch_ambulance_details(lat1, long1)
-
-    if hospital:
-        hospitals.append(hospital)
-    if ambulance:
-        ambulances.append(ambulance)
-
-if hospitals and ambulances:
-    allocate_resources(hospitals, ambulances, requirements["Number of Emergency Beds"], requirements["Number of Ambulances"])
-else:
-    print("⚠️ No hospitals or ambulances available for allocation.")
