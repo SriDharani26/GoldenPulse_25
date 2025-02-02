@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaBars, FaTimes, FaHospital, FaAmbulance } from "react-icons/fa";
+import { FaBars, FaTimes, FaHospital, FaAmbulance, FaMap } from "react-icons/fa";
 
 function Sidebar({ setActivePage, activePage }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -33,7 +33,17 @@ function Sidebar({ setActivePage, activePage }) {
         >
           <FaAmbulance className="text-xl" />
           {isExpanded && <span className="ml-3">Ambulance Data</span>}
+          
         </li>
+
+        <li
+          onClick={() => setActivePage("map")}
+          className={`flex items-center p-4 cursor-pointer hover:bg-blue-700 ${activePage === "ambulance" ? "bg-blue-700" : ""}`}
+        >
+          <FaMap className="text-xl" />
+          {isExpanded && <span className="ml-3">Map data</span>}
+        </li>
+
       </ul>
     </div>
   );
