@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS 
 import os
+from word2number import w2n 
 import speech_recognition as sr
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
@@ -79,7 +80,7 @@ def upload_audio():
         result = emergency_collection.insert_one(emergency_data)
         doc_id = result.inserted_id
      
-        print("came here")
+        print("came here2")
         
         
         response = jsonify({'message': 'Audio file uploaded and data saved successfully!'})
@@ -91,9 +92,10 @@ def upload_audio():
             emergency_type = "building"
         elif(emergency_type == "Landslide" or emergency_type == "Landslide"):
             emergency_type = "landslide"
-            
-        thread1 = threading.Thread(target=predict, args=( number_of_people,accident_type,doc_id))
-        thread2 = threading.Thread(target=predict_severity, args=( number_of_people,accident_type,doc_id))
+        
+        print("came here2")
+        thread1 = threading.Thread(target=predict, args=(injured_people,emergency_type,doc_id))
+        thread2 = threading.Thread(target=predict_severity, args=( injured_people,emergency_type,doc_id))
         thread1.start()
         thread2.start()
 
@@ -103,6 +105,9 @@ def upload_audio():
         return jsonify({'message': str(e)}), 500
 
 
+
+ # Converts English words to numbers
+
 def analyse_audio(audio_file):
     converted_audio_file = "uploads/converted_audio.wav"
 
@@ -111,7 +116,6 @@ def analyse_audio(audio_file):
         try:
             audio = AudioSegment.from_file(input_file)
             audio.export(output_file, format="wav")
-            print(f"File converted to WAV: {output_file}")
         except Exception as e:
             print(f"Error converting audio file: {e}")
 
@@ -122,11 +126,9 @@ def analyse_audio(audio_file):
                 header = f.read(4)
                 return header == b'RIFF'
         except Exception as e:
-            print(f"Error reading file: {e}")
             return False
 
     if not is_wav_format(audio_file):
-        print(f"File is not in WAV format. Converting {audio_file} to WAV...")
         convert_to_wav(audio_file, converted_audio_file)
         audio_file = converted_audio_file  
 
@@ -136,26 +138,66 @@ def analyse_audio(audio_file):
             r = sr.Recognizer()
             with sr.AudioFile(file_path) as source:
                 audio_data = r.record(source) 
-                text = r.recognize_google(audio_data)
+                text = r.recognize_google(audio_data, language="ta")  # Tamil & English
                 return text
         except Exception as e:
-            print(f"Error transcribing audio: {e}")
             return None
 
-    def extract_emergency_details(text):
-        nlp = spacy.load("en_core_web_sm")
+    def tamil_english_number_to_digit(text):
+        """Convert Tamil words/numerals, English words, & digits to numbers."""
+        tamil_numbers = {
+            "ஒன்று": 1, "இரண்டு": 2, "மூன்று": 3, "நான்கு": 4, "ஐந்து": 5,
+            "ஆறு": 6, "ஏழு": 7, "எட்டு": 8, "ஒன்பது": 9, "பத்து": 10,
+            "பதினொன்று": 11, "பன்னிரண்டு": 12, "பதிமூன்று": 13, "பதிநான்கு": 14,
+            "பதினைந்து": 15, "பதினாறு": 16, "பதினேழு": 17, "பதினெட்டு": 18,
+            "பத்தொன்பது": 19, "இருபது": 20, "முப்பது": 30, "நாற்பது": 40, "ஐம்பது": 50
+        }
+        
+        tamil_digits = {
+            "௦": 0, "௧": 1, "௨": 2, "௩": 3, "௪": 4, "௫": 5,
+            "௬": 6, "௭": 7, "௮": 8, "௯": 9, "௰": 10
+        }
 
-        fire_keywords = {"fire", "burning", "flames", "smoke"}
-        road_accident_keywords = {"road accident", "crash", "collision", "vehicle", "hit"}
-        building_collapse_keywords = {"building collapse", "collapsed", "trapped", "structure failure"}
-        landslide_keywords = {"landslide", "mudslide", "rockslide"}
-        injury_keywords = {"injured", "hurt", "wounded","died","collateral damage","affected","bleeding","severe", "casualties", "trapped", "people", "members"}
+        words = text.split()
+        numbers_found = []
+
+        for word in words:
+            if word in tamil_numbers:
+                numbers_found.append(tamil_numbers[word])
+            elif any(char in tamil_digits for char in word):
+                converted_num = "".join(str(tamil_digits[char]) if char in tamil_digits else char for char in word)
+                if converted_num.isdigit():
+                    numbers_found.append(int(converted_num))
+            elif word.isdigit():  # Detect normal English numbers
+                numbers_found.append(int(word))
+            else:
+                try:
+                    number = w2n.word_to_num(word)  # Convert English words like "ten" to 10
+                    numbers_found.append(number)
+                except ValueError:
+                    continue
+
+        return numbers_found
+
+    def extract_emergency_details(text):
+        """Extract emergency type and number of injured people from text."""
+        fire_keywords = {"fire", "burning", "flames", "smoke", "நெருப்பு", "எரிகிறது", "புகை", "தீ", "கொளுந்து"}
+        road_accident_keywords = {"road accident", "crash", "collision", "vehicle", "hit",
+                                  "விபத்து", "சாலை விபத்து", "வேகமான கார்", "மோதியது", "வாகனம்", "தாக்கியது"}
+        building_collapse_keywords = {"building collapse", "collapsed", "trapped", "structure failure",
+                                      "கட்டிடம்", "சரிவு", "மூடப்பட்டுவிட்டேன்", "அமைப்பு தோல்வி", "விழுந்து"}
+        landslide_keywords = {"landslide", "mudslide", "rockslide", "மண்ணிசைவு", "பாறை வீழ்ச்சி", "மண் சரிவு"}
+
+        injury_keywords = {"injured", "hurt", "wounded", "died", "affected", "bleeding", 
+                           "severe", "casualties", "trapped", "people", "members",
+                           "காயம்", "பாதிக்கப்பட்ட", "நபர்கள்", "பேர்", "உடல் பாதிப்பு"}
 
         emergency_type = "Unknown"
         injured_people = 0
 
         lower_text = text.lower()
 
+        # Detecting emergency type
         if any(word in lower_text for word in fire_keywords):
             emergency_type = "Fire"
         elif any(word in lower_text for word in road_accident_keywords):
@@ -164,43 +206,34 @@ def analyse_audio(audio_file):
             emergency_type = "Building Collapse"
         elif any(word in lower_text for word in landslide_keywords):
             emergency_type = "Landslide"
-        else:
-            emergency_type = "Unknown"  
 
-        injured_people = 0
+        # Extracting number of injured people
+        numbers = tamil_english_number_to_digit(text)
+
+        # Associate detected numbers with injury-related words
         words = text.split()
-
         for i, word in enumerate(words):
-            if word.lower() in injury_keywords:
-                for j in range(max(0, i - 3), min(len(words), i + 3)):
-                    if words[j].isdigit():
-                        injured_people = int(words[j])
+            if word in injury_keywords:
+                for j in range(max(0, i-3), min(len(words), i+3)):  # Check nearby words
+                    if words[j].isdigit() or words[j] in tamil_english_number_to_digit(words[j]):
+                        injured_people = tamil_english_number_to_digit(words[j])[0]  # Take first found number
                         break
-                if injured_people > 0:
-                    break
-                    
+
         return emergency_type, injured_people
 
+    # Transcribe the audio
     text = transcribe_audio(audio_file)
 
     if text:
-        print("Transcription successful:")
-        print(text)
+        print("Transcription successful:", text)
         emergency_type, injured_people = extract_emergency_details(text)
-
-        if emergency_type:
-            print(f"Emergency Type: {emergency_type.capitalize()}")
-        else:
-            print("Emergency Type: Not detected")
-
-        if injured_people is not None:
-            print(f"Number of Injured People: {injured_people}")
-        else:
-            print("Number of Injured People: Not mentioned")
+        print(f"Emergency Type: {emergency_type}")
+        print(f"Number of Injured People: {injured_people}")
+        return emergency_type, injured_people
     else:
-        print("Failed to transcribe audio.")
-        
-    return emergency_type, injured_people
+        print("Transcription failed.")
+        return None, None
+
 
 
 
@@ -247,9 +280,7 @@ def emergency():
             number_of_people=10
         elif(number_of_people=='10+'):
             number_of_people=15
-            
-        
-            
+ 
         thread1 = threading.Thread(target=predict, args=( number_of_people,accident_type,doc_id))
         thread2 = threading.Thread(target=predict_severity, args=( number_of_people,accident_type,doc_id))
         thread1.start()
